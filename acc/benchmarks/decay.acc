@@ -1,0 +1,15 @@
+// Truncated impulse response with fast-decaying taps 1/(1+k)^3.
+// The tail of every reduction is provably small: perforation's home turf.
+kernel decay {
+  budget 2e-2;
+  input x[48] in [-1, 1];
+  output y[32];
+
+  for i in 0..32 {
+    let acc = 0;
+    for k in 0..16 {
+      acc += x[i + k] / ((1 + k) * (1 + k) * (1 + k));
+    }
+    y[i] = acc;
+  }
+}

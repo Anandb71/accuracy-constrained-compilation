@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ACC — Accuracy Constrained Compilation</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <span class="mark">ε ≤ β</span>
+    <div>
+      <h1>Accuracy Constrained Compilation</h1>
+      <p>Declare the budget. The compiler spends it.</p>
+    </div>
+  </div>
+  <div class="top-meta" id="costSource"></div>
+</header>
+
+<main class="layout">
+  <!-- ============================================ source + controls -->
+  <section class="panel source">
+    <div class="bench-tabs" id="benchTabs" role="tablist" aria-label="Benchmarks"></div>
+
+    <div class="editor" id="editor">
+      <div class="gutter" id="gutter" aria-hidden="true"></div>
+      <div class="code-wrap">
+        <pre class="hl" id="hl" aria-hidden="true"></pre>
+        <textarea id="src" spellcheck="false" autocomplete="off" autocapitalize="off"
+                  aria-label="Kernel source"></textarea>
+      </div>
+    </div>
+
+    <div class="controls">
+      <div class="ctl">
+        <label for="budgetNum">Error budget β <span class="hint">absolute, every output</span></label>
+        <div class="budget-row">
+          <input type="range" id="budgetSlider" min="-7" max="0" step="0.05" aria-label="Budget, log scale">
+          <input type="text" id="budgetNum" inputmode="decimal">
+        </div>
+        <div class="hint" id="budgetHint">Overrides the <code>budget</code> line in the source.</div>
+      </div>
+
+      <div class="ctl">
+        <span class="lbl">Levers</span>
+        <div class="levers" id="levers">
+          <button class="lever on" data-lever="precision" aria-pressed="true"><i class="dot l-precision"></i>Precision</button>
+          <button class="lever on" data-lever="perforation" aria-pressed="true"><i class="dot l-perforation"></i>Perforation</button>
+          <button class="lever on" data-lever="memo" aria-pressed="true"><i class="dot l-memo"></i>Memoization</button>
+          <button class="lever on" data-lever="table" aria-pressed="true"><i class="dot l-table"></i>Tables</button>
+        </div>
+      </div>
+
+      <div class="ctl two">
+        <div>
+          <label for="solver">Allocator</label>
+          <select id="solver">
+            <option value="auto">ILP (HiGHS), SA fallback</option>
+            <option value="sa">Simulated annealing</option>
+          </select>
+        </div>
+        <div>
+          <label for="samples">Verification samples</label>
+          <select id="samples">
+            <option>64</option><option selected>256</option><option>1024</option>
+          </select>
+        </div>
+      </div>
+
+      <button class="primary" id="compileBtn">Compile <kbd>Ctrl ↵</kbd></button>
+      <div class="error-box" id="errorBox" role="alert" hidden></div>
+    </div>
+  </section>
+
+  <!-- ============================================ results -->
+  <section class="panel results" id="results">
+    <div class="kpis" id="kpis">
+      <div class="kpi"><span class="k-label">Certified bound</span><span class="k-val" id="kBound">—</span>
+        <div class="meter"><div id="kBoundBar"></div></div><span class="k-sub" id="kBoundSub">of budget β</span></div>
+      <div class="kpi"><span class="k-label">Measured max error</span><span class="k-val" id="kMeas">—</span>
+        <span class="k-sub" id="kMeasSub">Monte Carlo vs fp64</span></div>
+      <div class="kpi"><span class="k-label">Modeled speedup</span><span class="k-val" id="kSpeed">—</span>
+        <span class="k-sub" id="kSpeedSub">vs fp32 baseline</span></div>
+      <div class="kpi"><span class="k-label">Soundness</span><span class="k-val" id="kSound">—</span>
+        <span class="k-sub" id="kSoundSub">samples under the bound</span></div>
+    </div>
+
+    <nav class="tabs" role="tablist" id="tabs">
+      <button role="tab" data-tab="alloc" class="active">Allocation</button>
+      <button role="tab" data-tab="budget">Error budget</button>
+      <button role="tab" data-tab="sound">Soundness</button>
+      <button role="tab" data-tab="pareto">Pareto sweep</button>
+      <button role="tab" data-tab="pipe">Pipeline</button>
+      <button role="tab" data-tab="code">C code</button>
+    </nav>
+
+    <div class="tab-body">
+      <div class="tab active" id="tab-alloc">
+        <p class="lede" id="allocLede">Compile a kernel to see which approximation each site receives.</p>
+        <div class="table-wrap"><table class="sites" id="sitesTable"></table></div>
+      </div>
+
+      <div class="tab" id="tab-budget">
+        <p class="lede">Where the budget went: the certified bound on the worst output, split by the kind of error that produced it.</p>
+        <div id="budgetChart" class="chart"></div>
+        <div id="siteBars" class="chart"></div>
+      </div>
+
+      <div class="tab" id="tab-sound">
+        <p class="lede">Every sampled input, its measured error against the fp64 reference, and the bound the compiler proved. One point above the line would mean the analysis is unsound.</p>
+        <div id="soundChart" class="chart"></div>
+        <div id="soundNote" class="note"></div>
+      </div>
+
+      <div class="tab" id="tab-pareto">
+        <p class="lede">Speedup across budgets: all four levers against the precision-only tuner, each point certified and then measured.</p>
+        <button class="secondary" id="sweepBtn">Run sweep (13 budgets)</button>
+        <div id="paretoChart" class="chart"></div>
+        <div class="table-wrap"><table class="sites compact" id="paretoTable"></table></div>
+      </div>
+
+      <div class="tab" id="tab-pipe">
+        <p class="lede">The full front-to-back pipeline, with the time each phase took.</p>
+        <div id="phaseChart" class="chart"></div>
+        <div id="graphStats" class="stats"></div>
+        <div class="subtabs" id="pipeTabs">
+          <button data-view="ir" class="active">SSA IR</button>
+          <button data-view="ast">AST</button>
+          <button data-view="trace">Allocator trace</button>
+        </div>
+        <pre class="code-view" id="pipeView"></pre>
+      </div>
+
+      <div class="tab" id="tab-code">
+        <div class="code-head">
+          <p class="lede">Emitted C for the chosen configuration. Built with <code>-DACC_EMULATE</code> it reproduces every rounding bit-for-bit; built natively it times the structural levers.</p>
+          <button class="secondary" id="cbenchBtn">Compile &amp; time with gcc</button>
+        </div>
+        <div id="cbenchOut" class="cbench" hidden></div>
+        <pre class="code-view" id="cCode"></pre>
+      </div>
+    </div>
+    <div class="busy" id="busy" hidden><div class="spinner"></div><span id="busyText">Compiling…</span></div>
+  </section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

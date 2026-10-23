@@ -1,0 +1,16 @@
+// 16-tap FIR filter over a 64-sample window.
+// Error budget is absolute, on every output sample.
+kernel fir {
+  budget 2e-2;
+  input x[64] in [-1, 1];
+  input h[16] in [-0.25, 0.25];
+  output y[48];
+
+  for i in 0..48 {
+    let acc = 0;
+    for k in 0..16 {
+      acc += h[k] * x[i + k];
+    }
+    y[i] = acc;
+  }
+}

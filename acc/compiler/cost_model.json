@@ -1,0 +1,16 @@
+{
+  "source": "gcc -O2 dependent-chain latency on this host, relative to fp32 add",
+  "ops": {
+    "add": 1.0,
+    "mul": 1.98,
+    "div": 6.07,
+    "exp": 92.43,
+    "log": 73.28,
+    "sqrt": 7.61,
+    "sin": 109.65,
+    "cos": 93.78,
+    "tanh": 53.49,
+    "sigmoid": 151.91,
+    "sub": 1.0
+  }
+}

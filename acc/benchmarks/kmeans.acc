@@ -1,0 +1,20 @@
+// Soft k-means assignment: squared distance from each point to each
+// centroid, passed through a smooth kernel (a user-defined function).
+kernel kmeans {
+  budget 1e-2;
+  input p[16, 8] in [0, 1];
+  input c[4, 8] in [0, 1];
+  output w[16, 4];
+  fn kern(d) = exp(-d) * (1 + d);
+
+  for i in 0..16 {
+    for j in 0..4 {
+      let d = 0;
+      for k in 0..8 {
+        let t = p[i, k] - c[j, k];
+        d += t * t;
+      }
+      w[i, j] = kern(d);
+    }
+  }
+}
